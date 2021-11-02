@@ -32,7 +32,8 @@ library(gt)
 ```
 
 
-#### Introduction 
+Introduction 
+---
 
 The two datasets I have selected are sourced from the CDC and contain data related to the Covid-19 pandemic. The first two datasets I use document the daily number of cases and deaths on a national level. The third dataset I use, vax_admin, contains a wide range of data, detailing things such as vaccine distribution by brand and vaccine administration by brand, age group, and dose number. I found these datasets very interesting to used as they provide measured values to the pandemic we have experienced the past two years. 
 
@@ -46,9 +47,15 @@ daily_cases <- read_csv("data_table_for_daily_case_trends__the_united_states.csv
 daily_deaths <- read_csv("data_table_for_daily_death_trends__the_united_states.csv")
 ```
 
+```{r}
+glimpse(vax_admin)
+glimpse(daily_cases)
+glimpse(daily_deaths)
+```
 
 
-#### Tidying: Reshaping
+Tidying: Reshaping
+---
 
 Tidying vax_administration dataset. The original dataset gives information broken down by a state/territory/government entity level for each day, but I will need the "total US" data for each day in order to join this data with the other dataset later. The original dataset contains observations about all 50 US states, US territories, and other US government entities. In order to conduct a proper data join, this dataset had to be restricted to only the regions also included in the other dataset. Thus, this data is filtered to include only the 50 states and other specific US territories. Three new columns, Year Month Day, are created to allow for more flexible grouping, arranging, and filtering. In order to move forward with the condensing of rows so this dataset reflect data on a national level, summarize() is used to sum all the rows for all locations for each day. This grouping and summarization creates a display of data on the national level, rather than on the state/territory level.
 
@@ -77,28 +84,34 @@ vax_admin <- vax_admin %>%
             ) %>%
   arrange(Year, Month, Day) %>%
   ungroup()
+
+glimpse(vax_admin)
 ```
 
 daily_cases and daily_deaths are identical in column structure, so the same tidying changes are made to both datasets. Column 1 of each dataset gives the location, which for each row is "United States", so this redundant and unnecessary data is removed. The remaining columns are renamed to eliminate spaces in columnn names for ease of use.
 
 ```{r}
 daily_cases <- daily_cases %>% select(-1)
-daily_deaths <- daily_deaths %>% select(-1)
-
 daily_cases <- daily_cases %>% 
   rename(New_Cases = `New Cases`) %>% 
   rename(Historic_Cases = `Historic Cases`) %>%
   rename(Cases_7DayMovingAvg = `7-Day Moving Avg`)
+glimpse(daily_cases)
+```
 
+```{r}
+daily_deaths <- daily_deaths %>% select(-1)
 daily_deaths <- daily_deaths %>% 
   rename(New_Deaths = `New Deaths`) %>% 
   rename(Historic_Deaths = `Historic Deaths`)%>%
   rename(Deaths_7DayMovingAvg = `7-Day Moving Avg`)
+glimpse(daily_deaths)
 ```
 
 
     
-#### Joining/Merging
+Joining/Merging
+---
 
 daily_cases and daily_deaths are first joined together on the "Date" column to create daily_cases_deaths. These two datasets are joined using a full join in order to keep all rows from both datasets. Three new columns, Year Month Day, are created to mirror those in vax_admin and will be used for dataset joining.
 
@@ -109,17 +122,21 @@ daily_cases_deaths <- daily_cases_deaths %>%
   mutate(Year = format(as.Date(Date, "%m/%d/%Y"), "20%Y")) %>% 
   mutate(Month = format(as.Date(Date, "%m/%d/%Y"), "%m")) %>%
   mutate(Day = format(as.Date(Date, "%m/%d/%Y"), "%d"))
+
+glimpse(daily_cases_deaths)
 ```
 
 daily_cases_deaths is then joined with vax_admin on the "Year", "Month", and "Day" columns to create joined_data. These two datasets are joined using a left join in order to keep all the dates from daily_cases_deaths that predate those in vax_admin.
 
 ```{r}
 joined_data <- daily_cases_deaths %>% left_join(vax_admin, by=c("Year", "Month", "Day"))
+glimpse(joined_data)
 ```
 
 
 
-####  Wrangling
+Wrangling
+---
 
 Dataset manipulation and exploration using six core dplyr functions (filter, select, arrange, group_by, mutate, summarize)
 
@@ -256,7 +273,8 @@ manipulated_data3 %>%
 
 
 
-#### Visualizing
+Visualizing
+---
 
 This first plot makes use of manipulated_data1. This chart plots Deaths against Cases in a "heat map" style to show the correlation between these two variables and which sets of circumstances resulted in the most devistation. Layered underneath this 2D visualization are the data points used to create it. These points are colored by the Month that they come from, allowing us for contextualization of the chart. The main regions where a high number of cases and a high amount of death occurred generally follow a linear correlation, except for one patch in which there are a relatively low number of cases yet a higher number of deaths. While on its own this may not make sense, we can see that this region originated from points that occurred in April 2020, a time in which cases were relatively low, but the not a lot was known about the virus, the dominant strain being transmitted was very deadly, and effective treatment strategies had not yet been developed. Most of the months (part of May through October) are concentrated in the low cases-low deaths area, likely as masking and social-distancing efforts were adopted. Yet at the end of the year in November and December, the number of cases begin to rise as do the number of deaths, perhaps as people began ignoring safety measures for the holidays. This chart is limited to 2020 as vaccine rollout did not begin until the middle of December, so any impacts of the vaccine are excluded and not shown here.
 
