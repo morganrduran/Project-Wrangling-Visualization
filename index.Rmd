@@ -19,73 +19,290 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Morgan Duran (mrd2926)
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(kableExtra)
+library(gt)
+```
+
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+The two datasets I have selected are sourced from the CDC and contain data related to the Covid-19 pandemic. The first two datasets I use document the daily number of cases and deaths on a national level. The third dataset I use, vax_admin, contains a wide range of data, detailing things such as vaccine distribution by brand and vaccine administration by brand, age group, and dose number. I found these datasets very interesting to used as they provide measured values to the pandemic we have experienced the past two years. 
 
-```{R}
-# read your datasets in here, e.g., with read_csv()
+"data_table_for_daily_case_trends__the_united_states.csv" and "data_table_for_daily_death_trends__the_united_states.csv" downloaded from https://covid.cdc.gov/covid-data-tracker/?CDC_AA_refVal=https%3A%2F%2Fwww.cdc.gov%2Fcoronavirus%2F2019-ncov%2Fcases-updates%2Fcases-in-us.html#trends_dailycases|New_case|select
 
+"COVID-19_Vaccinations_in_the_United_States_Jurisdiction.csv" downloaded from https://data.cdc.gov/Vaccinations/COVID-19-Vaccinations-in-the-United-States-Jurisdi/unsk-b7fc
+
+```{r}
+vax_admin <- read_csv("COVID-19_Vaccinations_in_the_United_States_Jurisdiction.csv")
+daily_cases <- read_csv("data_table_for_daily_case_trends__the_united_states.csv")
+daily_deaths <- read_csv("data_table_for_daily_death_trends__the_united_states.csv")
 ```
+
+
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
+Tidying vax_administration dataset. The original dataset gives information broken down by a state/territory/government entity level for each day, but I will need the "total US" data for each day in order to join this data with the other dataset later. The original dataset contains observations about all 50 US states, US territories, and other US government entities. In order to conduct a proper data join, this dataset had to be restricted to only the regions also included in the other dataset. Thus, this data is filtered to include only the 50 states and other specific US territories. Three new columns, Year Month Day, are created to allow for more flexible grouping, arranging, and filtering. In order to move forward with the condensing of rows so this dataset reflect data on a national level, summarize() is used to sum all the rows for all locations for each day. This grouping and summarization creates a display of data on the national level, rather than on the state/territory level.
 
-```{R}
-# your tidying code (if applicable; can also wait until wrangling section)
+```{r}
+state_abbr <- c(state.abb, "AS", "DC", "FM", "GU", "MH", "MP", "PR", "RP", "VI")
+
+vax_admin <- vax_admin %>% 
+  rename(State = Location) %>% 
+  filter(State %in% state_abbr) %>%
+  rename(Distributed_Total = Distributed) %>% rename(Administered_Total = Administered) %>% 
+  mutate(Year = format(as.Date(Date, "%m/%d/%Y"), "20%Y")) %>% 
+  mutate(Month = format(as.Date(Date, "%m/%d/%Y"), "%m")) %>%
+  mutate(Day = format(as.Date(Date, "%m/%d/%Y"), "%d")) %>%
+  group_by(Year, Month, Day) %>%
+  summarize(Cummulative_Admin_Total=sum(Administered_Total),
+            Cummulative_Admin_Janssen = sum(Administered_Janssen),
+            Cummulative_Admin_Moderna = sum(Administered_Moderna),
+            Cummulative_Admin_Pfizer = sum(Administered_Pfizer),
+            Cummulative_Admin_UnkManuf = sum(Administered_Unk_Manuf),
+            Cummulative_Dose1 = sum(Administered_Dose1_Recip),
+            Cummulative_SeriesComplete = sum(Series_Complete_Yes),
+            Cummulative_Distr_Janssen=sum(Distributed_Janssen),
+            Cummulative_Distr_Moderna=sum(Distributed_Moderna),
+            Cummulative_Distr_Pfizer=sum(Distributed_Pfizer),
+            Cummulative_Distr_UnkManuf=sum(Distributed_Unk_Manuf)
+            ) %>%
+  arrange(Year, Month, Day) %>%
+  ungroup()
 ```
+
+daily_cases and daily_deaths are identical in column structure, so the same tidying changes are made to both datasets. Column 1 of each dataset gives the location, which for each row is "United States", so this redundant and unnecessary data is removed. The remaining columns are renamed to eliminate spaces in columnn names for ease of use.
+
+```{r}
+daily_cases <- daily_cases %>% select(-1)
+daily_deaths <- daily_deaths %>% select(-1)
+
+daily_cases <- daily_cases %>% 
+  rename(New_Cases = `New Cases`) %>% 
+  rename(Historic_Cases = `Historic Cases`) %>%
+  rename(Cases_7DayMovingAvg = `7-Day Moving Avg`)
+
+daily_deaths <- daily_deaths %>% 
+  rename(New_Deaths = `New Deaths`) %>% 
+  rename(Historic_Deaths = `Historic Deaths`)%>%
+  rename(Deaths_7DayMovingAvg = `7-Day Moving Avg`)
+```
+
 
     
 #### Joining/Merging
 
-```{R}
-# your joining code
+daily_cases and daily_deaths are first joined together on the "Date" column to create daily_cases_deaths. These two datasets are joined using a full join in order to keep all rows from both datasets. Three new columns, Year Month Day, are created to mirror those in vax_admin and will be used for dataset joining.
 
-# your joining code
+```{r}
+daily_cases_deaths <- daily_cases %>% full_join(daily_deaths, by="Date")
+
+daily_cases_deaths <- daily_cases_deaths %>%
+  mutate(Year = format(as.Date(Date, "%m/%d/%Y"), "20%Y")) %>% 
+  mutate(Month = format(as.Date(Date, "%m/%d/%Y"), "%m")) %>%
+  mutate(Day = format(as.Date(Date, "%m/%d/%Y"), "%d"))
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+daily_cases_deaths is then joined with vax_admin on the "Year", "Month", and "Day" columns to create joined_data. These two datasets are joined using a left join in order to keep all the dates from daily_cases_deaths that predate those in vax_admin.
+
+```{r}
+joined_data <- daily_cases_deaths %>% left_join(vax_admin, by=c("Year", "Month", "Day"))
+```
+
+
 
 ####  Wrangling
 
-```{R}
-# your wrangling code
+Dataset manipulation and exploration using six core dplyr functions (filter, select, arrange, group_by, mutate, summarize)
 
-# your wrangling code
+(also, continuation of data tidying with pivot_longer and pivot_wider)
 
-# your wrangling code
+joined_data is manipulated below in many ways to created manipulated_data1. The first step taken is to arrange the data in ascending date (from old to new), which is done using arrange() and by first arranging by year, then month, then day. The next set of steps taken is a series of mutations, though these lines are essentially a single mutation applied separately to 5 columns. The goal of this use of mutate() is to take a column of cummlative data and extract the change between each row (instance) to get a column that represents the daily change. This mutation is applied to columns that detail the number of Covid-19 vaccines administered (total and by brand). Next, pivot_longer() is applied to all columns detailing the number of vaccines administered: both daily and cummulative counts. The rows that begin with "Admin" are selected for, effectively eliminating all cummulative count columns. This is done using filter() and str_detect() (use of regex). The "name" column created from using pivot_longer() is separated into two columns to make labeling more efficient and less redundant. Using select(), unwanted columns are eliminated, such as the column containing the redunant names from the previous separate() step. After all unwanted columns are selected against, a pivot_wider is done to transform the long columns about daily vaccine administration by brand into individual columns (rather than having 5 rows per day, there is one row per day with 5 columns breaking down vaccine administration by brand and in total). All NA's are replaced with '0s' to fill holes in the dataset that occur before the vaccine existed in the vaccine administration columns.
+
+```{r}
+manipulated_data1 <- joined_data %>%
+  arrange(Year, Month, Day) %>%
+  mutate(Admin_Total = c(Cummulative_Admin_Total[1], diff(Cummulative_Admin_Total, lag=1, differences = 1))) %>%
+  mutate(Admin_Janssen = c(Cummulative_Admin_Janssen[1], diff(Cummulative_Admin_Janssen, lag=1, differences = 1))) %>%
+  mutate(Admin_Moderna = c(Cummulative_Admin_Moderna[1], diff(Cummulative_Admin_Moderna, lag=1, differences = 1))) %>%
+  mutate(Admin_Pfizer = c(Cummulative_Admin_Pfizer[1], diff(Cummulative_Admin_Pfizer, lag=1, differences = 1))) %>%
+  mutate(Admin_UnkManuf = c(Cummulative_Admin_UnkManuf[1], diff(Cummulative_Admin_UnkManuf, lag=1, differences = 1))) %>%
+  ungroup() %>%
+  select(-contains("Distr")) %>%
+  pivot_longer(cols=contains("Admin"), values_to="Count") %>%
+  filter(str_detect(name, "^Admin_[a-zA-Z]+")) %>%
+  separate(name, into = c("Admin", "Brand"), sep="_", remove=T) %>%
+  select(-Admin, -Cases_7DayMovingAvg, -Historic_Cases, -Deaths_7DayMovingAvg, -Historic_Deaths) %>%
+  pivot_wider(names_from = Brand, values_from=Count) %>%
+  replace(is.na(.), 0) %>%
+  ungroup() 
+
+glimpse(manipulated_data1)
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+joined_data is manipulated in a separate series of steps to create manipulated_data2. While manipulated_data1 focuses on the daily changes between data points, manipulated_data2 highlights the cummulative version of this data. Two new variables are created from existing variables: Cummulative_Pct_Dose1 is created from Cummulative_Dose1 and Cummulative_Pct_SeriesComplete is created from Cummulative_SeriesComplete, where each of the newly created variables represents the percentage of the US population that has received their first does and complete vaccine series. The population value used as the denominator came from https://www.census.gov/popclock/ on 31 Oct 2021. Lastly, an index is created that joins the Year and Month columns. This index will be useful for maintaining the order of data points when creating visualizations.
+
+```{r}
+manipulated_data2 <- joined_data %>%
+  arrange(Year, Month, Day) %>%
+  mutate(Cummulative_Pct_Partial = (Cummulative_Dose1 / 332889844))  %>% 
+  mutate(Cummulative_Pct_SeriesComplete = (Cummulative_SeriesComplete / 332889844)) %>% 
+  select(Date, Year, Month, Cummulative_Pct_Partial, Cummulative_Pct_SeriesComplete) %>%
+  pivot_longer(cols = contains("Cummulative"), names_to="Dose") %>%
+  unite(Index, c(Year, Month), sep=".", remove = F)
+
+glimpse(manipulated_data2)
+```
+
+joined_data is manipulated again in a separate series of steps to create manipulated_data3. This series of steps begins similarly to those used to create manipulated_data1, but contains additional columns and continues with further manipulation to ultimately condense the rows to a monthly (rather than daily) level. The first step taken is to arrange the data in ascending date (from old to new), which is done using arrange() and by first arranging by year, then month, then day. The next set of steps taken is a series of mutations, though these lines are essentially a single mutation applied separately to 9 columns. The goal of this use of mutate() is to take a column of cummlative data and extract the change between each row (instance) to get a column that represents the daily change. This mutation is applied to columns that detail the number of Covid-19 vaccines distributed and administered (total and by brand). Next, all columns of the cummulative counts of variables are removed using select(). pivot_longer() is applied to all columns detailing the daily number of vaccines distributed and administered. The column containing the names from the pivot_longer() are separated into Action (Distributed vs. Administered) and Brand. Additional columns that will not be used moving forward are removed. pivot_wider() is done to eliminate the length of the dataset. All NA's are replaced with '0s' to fill holes in the dataset that occur before the vaccine existed in the vaccine administration columns. At this point, the dataset looks fairly similar to manipulated_data1, displaying the daily number of vaccines administered. The next step taken is to condense the data from having rows on a daily basis to rows on a monthly basis. This is done by grouping by Year then Month, and summing each desired column in summarize(). Next, a categorical variable, Brand, is created using pivot_longer(), such that the manufacturer of the vaccine is the category. Lastly, an index is created that joins the Year and Month columns. This index will be useful for maintaining the order of data points when creating visualizations.
+
+```{r}
+manipulated_data3 <- joined_data %>%
+  arrange(Year, Month, Day) %>%
+  mutate(Admin_Total = c(Cummulative_Admin_Total[1], diff(Cummulative_Admin_Total, lag=1, differences = 1))) %>%
+  mutate(Admin_Janssen = c(Cummulative_Admin_Janssen[1], diff(Cummulative_Admin_Janssen, lag=1, differences = 1))) %>%
+  mutate(Admin_Moderna = c(Cummulative_Admin_Moderna[1], diff(Cummulative_Admin_Moderna, lag=1, differences = 1))) %>%
+  mutate(Admin_Pfizer = c(Cummulative_Admin_Pfizer[1], diff(Cummulative_Admin_Pfizer, lag=1, differences = 1))) %>%
+  mutate(Admin_UnkManuf = c(Cummulative_Admin_UnkManuf[1], diff(Cummulative_Admin_UnkManuf, lag=1, differences = 1))) %>%
+  mutate(Distr_Janssen = c(Cummulative_Distr_Janssen[1], diff(Cummulative_Distr_Janssen, lag=1, differences = 1))) %>%
+  mutate(Distr_Moderna = c(Cummulative_Distr_Moderna[1], diff(Cummulative_Distr_Moderna, lag=1, differences = 1))) %>%
+  mutate(Distr_Pfizer = c(Cummulative_Distr_Pfizer[1], diff(Cummulative_Distr_Pfizer, lag=1, differences = 1))) %>%
+  mutate(Distr_UnkManuf = c(Cummulative_Distr_UnkManuf[1], diff(Cummulative_Distr_UnkManuf, lag=1, differences = 1))) %>%
+  ungroup() %>%
+  select(-contains("Cummulative")) %>%
+  pivot_longer(cols=c(11:19), values_to="Count") %>%
+  separate(name, into = c("Action", "Brand"), sep="_", remove=T) %>%
+  select(-Cases_7DayMovingAvg, -Historic_Cases, -Deaths_7DayMovingAvg, -Historic_Deaths) %>%
+  pivot_wider(names_from = Brand, values_from=Count) %>%
+  replace(is.na(.), 0) %>%
+  ungroup() %>%
+  group_by(Year, Month, Action) %>%
+  summarize(Janssen=sum(Janssen), Moderna=sum(Moderna), Pfizer=sum(Pfizer), Unknown=sum(UnkManuf)) %>%
+  pivot_longer(cols=c(Janssen, Moderna, Pfizer, Unknown), names_to="Brand", values_to="Count") %>%
+  unite(Index, c(Year, Month), sep=".", remove = F)
+
+glimpse(manipulated_data3)
+```
+
+Summary statistics (mean, sd, var, n, quantile, min, max, n_distinct, cor, etc) creation for numeric variables of interest
+
+Summary statistics for New_Cases and New_Deaths (two numeric variables) are reported below. Note that med() function has been manually written to find the median of each numeric variable.
+
+```{r}
+med <-  function(x) {
+  n <- length(x)
+  s <- sort(x)
+  ifelse(n%%2==1, s[(n+1)/2], mean(s[n/2+0:1]))
+}
+
+manipulated_data1 %>%
+  summarize_at(vars(New_Cases, New_Deaths), funs(min, max, mean, med, sd, var)) %>%
+  pivot_longer(cols=c(1:12)) %>%
+  separate(name, into=c("A","B","stat"), sep="_", remove=T) %>%
+  unite("name", c("A","B"), sep="_", remove = T) %>%
+  arrange(name) %>%
+  pivot_wider() %>%
+  gt %>%
+  tab_header(title=md("**Summary Statistics**"), subtitle=md("A table of my `manipulated_data1` summary statistics"))
+```
+
+Summary statistics for New_Cases and New_Deaths (two numeric variables) are reported below. Note that med() function has been manually written to find the median of each numeric variable.
+
+```{r}
+manipulated_data1 %>%
+  group_by(Year, Month) %>%
+  summarize_at(vars(New_Cases, New_Deaths), funs(min, max, mean, med, sd, var)) %>%
+  pivot_longer(cols=c(3:14)) %>%
+  separate(name, into=c("A","B","stat"), sep="_", remove=T) %>%
+  unite("name", c("A","B"), sep="_", remove = T) %>%
+  arrange(name) %>%
+  pivot_wider() %>%
+  head(20) %>%
+  gt %>%
+  tab_header(title=md("**Summary Statistics**"), subtitle=md("A table of my `manipulated_data1` summary statistics"))
+```
+
+Summary statistics for numeric variables Total, Janssen, Moderna, Pfizer, and UnkManuf are reported below.
+
+```{r}
+manipulated_data1 %>%
+  summarize_at(vars(Total, Janssen, Moderna, Pfizer, UnkManuf), funs(min, max, mean, sd, var)) %>%
+  pivot_longer(cols=c(1:25)) %>%
+  separate(name, into=c("name","stat"), sep="_", remove=T) %>%
+  arrange(name) %>%
+  pivot_wider() %>%
+  gt %>%
+  tab_header(title=md("**Summary Statistics**"), subtitle=md("A table of my `manipulated_data2` summary statistics"))
+```
+
+Summary statistics for the categorical variable "Brand", showing number of occurrences and frequency. 
+
+```{r}
+manipulated_data3 %>%
+  ungroup() %>%
+  group_by(Brand) %>%
+  summarize(n(), frequency(Brand)) %>%
+  gt %>%
+  tab_header(title=md("**Summary Statistics**"), subtitle=md("A table of my `manipulated_data3` categorical summary statistics"))
+```
+
 
 
 #### Visualizing
 
-```{R}
-# your plot 1
+This first plot makes use of manipulated_data1. This chart plots Deaths against Cases in a "heat map" style to show the correlation between these two variables and which sets of circumstances resulted in the most devistation. Layered underneath this 2D visualization are the data points used to create it. These points are colored by the Month that they come from, allowing us for contextualization of the chart. The main regions where a high number of cases and a high amount of death occurred generally follow a linear correlation, except for one patch in which there are a relatively low number of cases yet a higher number of deaths. While on its own this may not make sense, we can see that this region originated from points that occurred in April 2020, a time in which cases were relatively low, but the not a lot was known about the virus, the dominant strain being transmitted was very deadly, and effective treatment strategies had not yet been developed. Most of the months (part of May through October) are concentrated in the low cases-low deaths area, likely as masking and social-distancing efforts were adopted. Yet at the end of the year in November and December, the number of cases begin to rise as do the number of deaths, perhaps as people began ignoring safety measures for the holidays. This chart is limited to 2020 as vaccine rollout did not begin until the middle of December, so any impacts of the vaccine are excluded and not shown here.
+
+```{r}
+ggplot(manipulated_data1 %>% filter(Year==2020), aes(New_Cases, New_Deaths)) +
+  geom_point(aes(color=Month)) +
+  geom_density2d() +
+  xlab("Cases") +
+  ylab("Deaths") +
+  ggtitle("Covid Cases and Deaths in 2020") +
+  scale_x_continuous(breaks=seq(0, 300000, 50000)) +
+  scale_y_continuous(breaks=seq(0,4000,1000)) +
+  theme_light() +
+  theme(legend.position = "right")
 ```
 
-Your discussion of plot 1
+This second plot shows a bar plot of the cummulative percentage of the US population that has been partially and fully vaccinated. Each pair of bars represents a month in which people received the vaccine, starting in December 2020. However, it is important to note that the data for this project (sourced from the CDC) did not begin documenting partial/full vaccination status until February 2021. Each bar shows the maximum percentage, or the percentage of the population that had acheived a certain vaccination status by the end of the month. The errorbars are centered at the median and have lower and upper bounds of the outer quantiles. The position of the errorbars serve to visually show the change in percentage from the previous month. From this chart, as the distance between the bottom and top of the error bar decreases, it can be seen that in the earlier months of 2021, larger amounts of the population received the vaccine and that lower percentages of the population received the vaccine as the year progressed. Additionally, the difference in height between the two bars each month decreased, suggesting that people who had only gotten the first dose of their vaccine prioritized returning to receive the second dose.
 
-```{R}
-# your plot 2
+```{r}
+ggplot(manipulated_data2 %>% filter(Index>2020.11), aes(x=Index, y=value, fill=Dose)) +
+  geom_bar(stat="summary", fun=max, position="dodge") +
+  geom_errorbar(stat="summary", fun.data=median_hilow, position="dodge", color="black") +
+  theme_light() +
+  theme(legend.position = "bottom") +
+  theme(legend.title = element_blank()) +
+  scale_x_discrete(labels=c(12, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10)) +
+  scale_y_continuous(breaks=seq(0, 0.75, 0.25)) +
+  scale_fill_brewer() +
+  xlab("Month") +
+  ylab("Percentage of US Population") +
+  ggtitle("Cummulative Percentage of Vaccination Status amongst the US Population")
 ```
 
-Your discussion of plot 2
+The plot below aims to show the number of covid-19 vaccines distributed and administered in the US, broken down by brand. Each faceted chart shows the total number of vaccines distributed and administered using geom_point(), and shows the shape of the pattern between these two variables using geom_line(). While the data sourced from this project (from the CDC) began documenting information about vaccine administration by brand in December 2020, it did not begin documenting data on the number of vaccines ordered for distribution by brand until March 2021. This chart aims to depict the lag time that occurs between vaccine demand and rollout in the US. For Moderna and Pfizer, the two most popular vaccines in the US, the "Distr" peak occurs about a month before the "Admin" peak. But after this initial peak, the demand for distribution does not quite as perfectly follow the demand for administration.
 
-```{R}
-# your plot 3
+```{r}
+ggplot(manipulated_data3 %>% 
+  filter(Index>=2020.11), aes(x=Index, y=Count, color=Action)) +
+  geom_point() + 
+  geom_line(aes(group=Action)) +
+  ggtitle("Number of Vaccine Doses Administered by Manufacturer") +
+  xlab("Month") +
+  ylab("Count of Doses Administered") +
+  facet_grid(~Brand) +
+  scale_x_discrete(labels=c(11, 12, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10)) +
+  theme_light() +
+  theme(legend.position="bottom")
 ```
-
-Your discussion of plot 3
-
-#### Concluding Remarks
-
-If any!
-
-
-
 
