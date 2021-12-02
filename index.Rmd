@@ -62,7 +62,7 @@ Tidying vax_administration dataset. The original dataset gives information broke
 ```{r}
 state_abbr <- c(state.abb, "AS", "DC", "FM", "GU", "MH", "MP", "PR", "RP", "VI")
 
-vax_admin <- vax_admin %>% 
+vvax_admin <- vax_admin %>% 
   rename(State = Location) %>% 
   filter(State %in% state_abbr) %>%
   rename(Distributed_Total = Distributed) %>% rename(Administered_Total = Administered) %>% 
@@ -77,6 +77,7 @@ vax_admin <- vax_admin %>%
             Cummulative_Admin_UnkManuf = sum(Administered_Unk_Manuf),
             Cummulative_Dose1 = sum(Administered_Dose1_Recip),
             Cummulative_SeriesComplete = sum(Series_Complete_Yes),
+            Cummulative_Distr_Total=sum(Distributed_Total),
             Cummulative_Distr_Janssen=sum(Distributed_Janssen),
             Cummulative_Distr_Moderna=sum(Distributed_Moderna),
             Cummulative_Distr_Pfizer=sum(Distributed_Pfizer),
@@ -189,21 +190,22 @@ manipulated_data3 <- joined_data %>%
   mutate(Admin_Moderna = c(Cummulative_Admin_Moderna[1], diff(Cummulative_Admin_Moderna, lag=1, differences = 1))) %>%
   mutate(Admin_Pfizer = c(Cummulative_Admin_Pfizer[1], diff(Cummulative_Admin_Pfizer, lag=1, differences = 1))) %>%
   mutate(Admin_UnkManuf = c(Cummulative_Admin_UnkManuf[1], diff(Cummulative_Admin_UnkManuf, lag=1, differences = 1))) %>%
+  mutate(Distr_Total = c(Cummulative_Distr_Total[1], diff(Cummulative_Distr_Total, lag=1, differences = 1))) %>%
   mutate(Distr_Janssen = c(Cummulative_Distr_Janssen[1], diff(Cummulative_Distr_Janssen, lag=1, differences = 1))) %>%
   mutate(Distr_Moderna = c(Cummulative_Distr_Moderna[1], diff(Cummulative_Distr_Moderna, lag=1, differences = 1))) %>%
   mutate(Distr_Pfizer = c(Cummulative_Distr_Pfizer[1], diff(Cummulative_Distr_Pfizer, lag=1, differences = 1))) %>%
   mutate(Distr_UnkManuf = c(Cummulative_Distr_UnkManuf[1], diff(Cummulative_Distr_UnkManuf, lag=1, differences = 1))) %>%
   ungroup() %>%
   select(-contains("Cummulative")) %>%
-  pivot_longer(cols=c(11:19), values_to="Count") %>%
+  pivot_longer(cols=c(11:20), values_to="Count") %>%
   separate(name, into = c("Action", "Brand"), sep="_", remove=T) %>%
   select(-Cases_7DayMovingAvg, -Historic_Cases, -Deaths_7DayMovingAvg, -Historic_Deaths) %>%
   pivot_wider(names_from = Brand, values_from=Count) %>%
   replace(is.na(.), 0) %>%
   ungroup() %>%
   group_by(Year, Month, Action) %>%
-  summarize(Janssen=sum(Janssen), Moderna=sum(Moderna), Pfizer=sum(Pfizer), Unknown=sum(UnkManuf)) %>%
-  pivot_longer(cols=c(Janssen, Moderna, Pfizer, Unknown), names_to="Brand", values_to="Count") %>%
+  summarize(Total=sum(Total), Janssen=sum(Janssen), Moderna=sum(Moderna), Pfizer=sum(Pfizer), Unknown=sum(UnkManuf)) %>%
+  pivot_longer(cols=c(Total, Janssen, Moderna, Pfizer, Unknown), names_to="Brand", values_to="Count") %>%
   unite(Index, c(Year, Month), sep=".", remove = F)
 
 glimpse(manipulated_data3)
