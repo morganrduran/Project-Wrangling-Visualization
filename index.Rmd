@@ -21,7 +21,7 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ### Morgan Duran (mrd2926)
 
-```{r}
+```{r, warning=FALSE,message=FALSE}
 library(readr)
 library(dplyr)
 library(tidyr)
@@ -41,7 +41,7 @@ The two datasets I have selected are sourced from the CDC and contain data relat
 
 "COVID-19_Vaccinations_in_the_United_States_Jurisdiction.csv" downloaded from https://data.cdc.gov/Vaccinations/COVID-19-Vaccinations-in-the-United-States-Jurisdi/unsk-b7fc
 
-```{r}
+```{r, warning=FALSE,message=FALSE}
 vax_admin <- read_csv("COVID-19_Vaccinations_in_the_United_States_Jurisdiction.csv")
 daily_cases <- read_csv("data_table_for_daily_case_trends__the_united_states.csv")
 daily_deaths <- read_csv("data_table_for_daily_death_trends__the_united_states.csv")
@@ -62,7 +62,7 @@ Tidying vax_administration dataset. The original dataset gives information broke
 ```{r}
 state_abbr <- c(state.abb, "AS", "DC", "FM", "GU", "MH", "MP", "PR", "RP", "VI")
 
-vvax_admin <- vax_admin %>% 
+vax_admin <- vax_admin %>% 
   rename(State = Location) %>% 
   filter(State %in% state_abbr) %>%
   rename(Distributed_Total = Distributed) %>% rename(Administered_Total = Administered) %>% 
