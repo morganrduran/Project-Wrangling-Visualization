@@ -1,6 +1,6 @@
 ---
 title: 'Project 1: Wrangling, Exploration, Visualization'
-author: "SDS322E"
+author: "Morgan Duran"
 date: ''
 output:
   html_document:
@@ -18,8 +18,6 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 ```
 
 ## Data Wrangling, Exploration, Visualization
-
-### Morgan Duran (mrd2926)
 
 ```{r, warning=FALSE,message=FALSE}
 library(readr)
